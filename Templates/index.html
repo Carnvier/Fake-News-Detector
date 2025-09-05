@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fake News Detector</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .input-section {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: #555;
+        }
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            resize: vertical;
+            box-sizing: border-box;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+        .button-section {
+            text-align: center;
+            margin-top: 20px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .result-section {
+            margin-top: 30px;
+            padding: 20px;
+            border-radius: 5px;
+            display: none; /* Initially hidden */
+        }
+        .result-fake {
+            background-color: #ffebee;
+            border: 2px solid #f44336;
+            color: #c62828;
+        }
+        .result-real {
+            background-color: #e8f5e8;
+            border: 2px solid #4CAF50;
+            color: #2e7d32;
+        }
+        .result-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .confidence {
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        .loading {
+            text-align: center;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Fake News Detector</h1>
+        
+        <form method="post" id="newsForm">
+            {% csrf_token %}
+            <div class="input-section">
+                <label for="newsText">Enter news article text to analyze:</label>
+                <textarea 
+                    id="newsText" 
+                    name="news_text" 
+                    placeholder="Paste the news article text here..."
+                    required
+                ></textarea>
+            </div>
+            
+            <div class="button-section">
+                <button type="submit" id="analyzeBtn">Analyze News</button>
+            </div>
+        </form>
+        
+        <div id="result" class="result-section">
+            <div class="result-title" id="resultTitle"></div>
+            <div id="resultText"></div>
+            <div class="confidence" id="confidence"></div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('newsForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const newsText = document.getElementById('newsText').value.trim();
+            if (!newsText) {
+                alert('Please enter some news text to analyze.');
+                return;
+            }
+            
+            const analyzeBtn = document.getElementById('analyzeBtn');
+            const resultDiv = document.getElementById('result');
+            
+            // Show loading state
+            analyzeBtn.disabled = true;
+            analyzeBtn.textContent = 'Analyzing...';
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result-section';
+            document.getElementById('resultTitle').textContent = 'Analyzing...';
+            document.getElementById('resultText').textContent = 'Please wait while we analyze the news article.';
+            document.getElementById('confidence').textContent = '';
+            
+            // Send AJAX request
+            fetch('{% url "predict" %}', {  // Update URL to point to the predict view
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: new URLSearchParams({
+                    'news_text': newsText
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Display results
+                if (data.prediction === 0) {
+                    resultDiv.className = 'result-section result-fake';
+                    document.getElementById('resultTitle').textContent = '⚠️ Potentially Fake News';
+                    document.getElementById('resultText').textContent = 'Our model suggests this article may contain fake or misleading information.';
+                } else {
+                    resultDiv.className = 'result-section result-real';
+                    document.getElementById('resultTitle').textContent = '✅ Likely Real News';
+                    document.getElementById('resultText').textContent = 'Our model suggests this article appears to be legitimate news.';
+                }
+                
+                if (data.confidence) {
+                    document.getElementById('confidence').textContent = `Confidence: ${(data.confidence * 100).toFixed(1)}%`;
+                }
+                
+                // Reset button
+                analyzeBtn.disabled = false;
+                analyzeBtn.textContent = 'Analyze News';
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                resultDiv.className = 'result-section result-fake'; // Display error as fake news
+                document.getElementById('resultTitle').textContent = 'Error';
+                document.getElementById('resultText').textContent = 'An error occurred while analyzing the news. Please try again.';
+                document.getElementById('confidence').textContent = '';
+                
+                // Reset button
+                analyzeBtn.disabled = false;
+                analyzeBtn.textContent = 'Analyze News';
+            });
+        });
+    </script>
+</body>
+</html>
